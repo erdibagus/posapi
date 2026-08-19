@@ -12,8 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 
 $host = 'localhost';
 $db_name = 'kumonpur_pos';
-$username = 'kumonpur_baguffs';
-$password = 'gagaso123!';
+$username = 'kumonpur_bagus';
+$password = 'Gagaso123!';
 // $db_name = 'posprime_db';
 // $username = 'root';
 // $password = '';
