@@ -220,7 +220,7 @@ if ($method === 'POST') {
             $stmtOld->execute([$id_transaksi]);
             $oldItems = $stmtOld->fetchAll();
 
-            $stmtProd = $pdo->prepare("SELECT stok_pcs, isi_per_dus FROM produk WHERE id = ? FOR UPDATE");
+            $stmtProd = $pdo->prepare("SELECT * FROM produk WHERE id = ? FOR UPDATE");
             $stmtRollback = $pdo->prepare("UPDATE produk SET stok_pcs = stok_pcs + ? WHERE id = ?");
 
             foreach ($oldItems as $old) {
