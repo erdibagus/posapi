@@ -115,6 +115,8 @@ if ($method === 'POST') {
             $pdo->rollBack();
             jsonResponse(false, 'Gagal memproses pembelian: ' . $e->getMessage(), null, 500);
         }
+    }
+    
     if ($action === 'delete') {
         $id = isset($data['id']) ? intval($data['id']) : 0;
         if (!$id) {
@@ -202,7 +204,6 @@ if ($method === 'POST') {
             jsonResponse(false, 'Gagal mengupdate pembelian: ' . $e->getMessage(), null, 500);
         }
     }
-}
 }
 
 jsonResponse(false, 'Endpoint tidak ditemukan', null, 404);
