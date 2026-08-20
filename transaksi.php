@@ -315,4 +315,45 @@ if ($method === 'POST') {
             jsonResponse(false, 'Gagal mengupdate transaksi: ' . $e->getMessage(), null, 500);
         }
     }
+
+    if ($action === 'delete') {
+        $id_transaksi = isset($data['id']) ? intval($data['id']) : 0;
+        if (!$id_transaksi) {
+            jsonResponse(false, 'ID transaksi wajib diisi!', null, 400);
+        }
+
+        $pdo->beginTransaction();
+        try {
+            // 1. Dapatkan detail transaksi untuk rollback stok
+            $stmtOld = $pdo->prepare("SELECT id_produk, jumlah, satuan FROM detail_transaksi WHERE id_transaksi = ?");
+            $stmtOld->execute([$id_transaksi]);
+            $oldItems = $stmtOld->fetchAll();
+
+            $stmtProd = $pdo->prepare("SELECT isi_per_dus FROM produk WHERE id = ? FOR UPDATE");
+            $stmtRollback = $pdo->prepare("UPDATE produk SET stok_pcs = stok_pcs + ? WHERE id = ?");
+
+            foreach ($oldItems as $old) {
+                $stmtProd->execute([$old['id_produk']]);
+                $prod = $stmtProd->fetch();
+                if ($prod) {
+                    $isi_per_dus = max(1, intval($prod['isi_per_dus']));
+                    $stok_reduction = ($old['satuan'] === 'dus') ? ($old['jumlah'] * $isi_per_dus) : $old['jumlah'];
+                    $stmtRollback->execute([$stok_reduction, $old['id_produk']]);
+                }
+            }
+
+            // 2. Hapus dari tabel transaksi (CASCADE akan menghapus detail jika di-set di DB, tapi lebih aman eksekusi DELETE dari detail dulu)
+            $stmtDelDetail = $pdo->prepare("DELETE FROM detail_transaksi WHERE id_transaksi = ?");
+            $stmtDelDetail->execute([$id_transaksi]);
+
+            $stmtDelTrans = $pdo->prepare("DELETE FROM transaksi WHERE id = ?");
+            $stmtDelTrans->execute([$id_transaksi]);
+
+            $pdo->commit();
+            jsonResponse(true, 'Data riwayat transaksi berhasil dihapus dan stok dikembalikan.');
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Gagal menghapus transaksi: ' . $e->getMessage(), null, 500);
+        }
+    }
 }
