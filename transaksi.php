@@ -57,7 +57,7 @@ if ($method === 'GET') {
             jsonResponse(false, 'Transaksi tidak ditemukan', null, 404);
         }
 
-        $stmtItems = $pdo->prepare("SELECT d.*, p.nama_produk, p.kode_barcode 
+        $stmtItems = $pdo->prepare("SELECT d.*, p.nama_produk, p.kode_barcode, p.harga_jual_pcs, p.harga_jual_dus, p.isi_per_dus, p.harga_beli, p.stok_pcs 
                                    FROM detail_transaksi d 
                                    JOIN produk p ON d.id_produk = p.id 
                                    WHERE d.id_transaksi = ?");
@@ -198,6 +198,121 @@ if ($method === 'POST') {
         } catch (Exception $e) {
             $pdo->rollBack();
             jsonResponse(false, $e->getMessage(), null, 400);
+        }
+    }
+
+    if ($action === 'update') {
+        $id_transaksi = isset($data['id']) ? intval($data['id']) : 0;
+        $id_user = isset($data['id_user']) ? intval($data['id_user']) : 1;
+        $items = isset($data['items']) ? $data['items'] : [];
+        $total_bayar = floatval(isset($data['total_bayar']) ? $data['total_bayar'] : 0);
+        $metode_pembayaran = isset($data['metode_pembayaran']) ? $data['metode_pembayaran'] : 'Tunai';
+
+        if (!$id_transaksi || empty($items) || !is_array($items)) {
+            jsonResponse(false, 'Data transaksi tidak lengkap!', null, 400);
+        }
+
+        $pdo->beginTransaction();
+
+        try {
+            // 1. Dapatkan detail lama untuk rollback stok
+            $stmtOld = $pdo->prepare("SELECT id_produk, jumlah, satuan FROM detail_transaksi WHERE id_transaksi = ?");
+            $stmtOld->execute([$id_transaksi]);
+            $oldItems = $stmtOld->fetchAll();
+
+            $stmtProd = $pdo->prepare("SELECT stok_pcs, isi_per_dus FROM produk WHERE id = ? FOR UPDATE");
+            $stmtRollback = $pdo->prepare("UPDATE produk SET stok_pcs = stok_pcs + ? WHERE id = ?");
+
+            foreach ($oldItems as $old) {
+                $stmtProd->execute([$old['id_produk']]);
+                $prod = $stmtProd->fetch();
+                if ($prod) {
+                    $isi_per_dus = max(1, intval($prod['isi_per_dus']));
+                    $stok_reduction = ($old['satuan'] === 'dus') ? ($old['jumlah'] * $isi_per_dus) : $old['jumlah'];
+                    $stmtRollback->execute([$stok_reduction, $old['id_produk']]);
+                }
+            }
+
+            // 2. Kalkulasi item baru dan kurangi stok
+            $total_harga = 0;
+            $processedItems = [];
+
+            foreach ($items as $item) {
+                $produk_id = intval($item['id']);
+                $jumlah = intval($item['jumlah']);
+                $satuan = strtolower(isset($item['satuan']) ? $item['satuan'] : 'pcs');
+
+                if ($jumlah <= 0) continue;
+
+                $stmtProd->execute([$produk_id]);
+                $product = $stmtProd->fetch();
+
+                if (!$product) {
+                    throw new Exception("Produk ID {$produk_id} tidak ditemukan!");
+                }
+
+                $isi_per_dus = max(1, intval($product['isi_per_dus']));
+                $hpp_satuan = floatval($product['harga_beli']);
+
+                if ($satuan === 'dus') {
+                    $harga_satuan = floatval($product['harga_jual_dus']);
+                    $stok_reduction = $jumlah * $isi_per_dus;
+                    $total_hpp_item = $hpp_satuan * $stok_reduction;
+                } else {
+                    $harga_satuan = floatval($product['harga_jual_pcs']);
+                    $stok_reduction = $jumlah;
+                    $total_hpp_item = $hpp_satuan * $jumlah;
+                }
+
+                if ($product['stok_pcs'] < $stok_reduction) {
+                    throw new Exception("Stok untuk {$product['nama_produk']} tidak mencukupi! (Sisa stok: {$product['stok_pcs']} pcs, butuh: {$stok_reduction} pcs)");
+                }
+
+                $subtotal = $harga_satuan * $jumlah;
+                $total_harga += $subtotal;
+
+                $processedItems[] = [
+                    'id_produk' => $produk_id,
+                    'harga_satuan' => $harga_satuan,
+                    'jumlah' => $jumlah,
+                    'satuan' => $satuan,
+                    'subtotal' => $subtotal,
+                    'hpp_satuan' => $hpp_satuan,
+                    'total_hpp' => $total_hpp_item,
+                    'new_stok' => $product['stok_pcs'] - $stok_reduction
+                ];
+            }
+
+            if ($total_bayar < $total_harga) {
+                throw new Exception("Jumlah bayar kurang dari total harga!");
+            }
+
+            $kembalian = $total_bayar - $total_harga;
+
+            // 3. Update tabel transaksi
+            $stmtUpdateTrans = $pdo->prepare("UPDATE transaksi SET total_harga = ?, total_bayar = ?, kembalian = ?, metode_pembayaran = ? WHERE id = ?");
+            $stmtUpdateTrans->execute([$total_harga, $total_bayar, $kembalian, $metode_pembayaran, $id_transaksi]);
+
+            // 4. Hapus detail lama
+            $stmtDel = $pdo->prepare("DELETE FROM detail_transaksi WHERE id_transaksi = ?");
+            $stmtDel->execute([$id_transaksi]);
+
+            // 5. Insert detail baru & update stok
+            $stmtDetail = $pdo->prepare("INSERT INTO detail_transaksi (id_transaksi, id_produk, harga_satuan, jumlah, satuan, subtotal, hpp_satuan, total_hpp) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmtUpdateStok = $pdo->prepare("UPDATE produk SET stok_pcs = ? WHERE id = ?");
+
+            foreach ($processedItems as $pi) {
+                $stmtDetail->execute([
+                    $id_transaksi, $pi['id_produk'], $pi['harga_satuan'], $pi['jumlah'], $pi['satuan'], $pi['subtotal'], $pi['hpp_satuan'], $pi['total_hpp']
+                ]);
+                $stmtUpdateStok->execute([$pi['new_stok'], $pi['id_produk']]);
+            }
+
+            $pdo->commit();
+            jsonResponse(true, 'Transaksi berhasil diupdate!');
+        } catch (Exception $e) {
+            $pdo->rollBack();
+            jsonResponse(false, 'Gagal mengupdate transaksi: ' . $e->getMessage(), null, 500);
         }
     }
 }
