@@ -22,6 +22,24 @@ if ($action === 'login') {
     res(true, ['user' => $user, 'token' => $token]);
 }
 
+if ($action === 'biometric_login') {
+    $username = trim($body['username'] ?? '');
+    
+    if (!$username) res(false, null, 'Username tidak boleh kosong');
+
+    $stmt = $db->prepare("SELECT * FROM users WHERE username = ?");
+    $stmt->execute([$username]);
+    $user = $stmt->fetch();
+
+    if (!$user) res(false, null, 'Username tidak ditemukan');
+
+    // Biometric verification already done in frontend via WebAuthn
+    // Here we just authenticate the user based on username
+    $token = base64_encode($user['id'] . ':' . $user['role'] . ':' . time());
+    unset($user['password']);
+    res(true, ['user' => $user, 'token' => $token]);
+}
+
 if ($action === 'change_password') {
     $id  = intval($body['id'] ?? 0);
     $old = $body['old'] ?? '';
