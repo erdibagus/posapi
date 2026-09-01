@@ -5,6 +5,9 @@ class Database {
     private $db   = 'kumonpur_kasir';
     private $user = 'kumonpur_bagus';
     private $pass = 'gagaso123!';
+    // private $db   = 'kasirku_db';
+    // private $user = 'root';
+    // private $pass = '';
     private $charset = 'utf8mb4';
     public $conn;
 
