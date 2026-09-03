@@ -9,10 +9,12 @@ if ($method === 'GET') {
     $to   = $_GET['to']   ?? date('Y-m-d');
 
     // Transactions with HPP
-    $stmt = $db->prepare("SELECT t.*, u.nama AS kasir,
+    $stmt = $db->prepare("SELECT t.*, u.nama AS kasir, pl.nama_pelanggan,
         COALESCE((SELECT SUM(dt.total_hpp) FROM detail_transaksi dt WHERE dt.id_transaksi=t.id),0) AS total_hpp,
         t.total_harga - COALESCE((SELECT SUM(dt.total_hpp) FROM detail_transaksi dt WHERE dt.id_transaksi=t.id),0) AS laba_kotor
-        FROM transaksi t LEFT JOIN users u ON t.id_user=u.id
+        FROM transaksi t 
+        LEFT JOIN users u ON t.id_user=u.id
+        LEFT JOIN pelanggan pl ON t.id_pelanggan=pl.id
         WHERE DATE(t.tanggal) BETWEEN ? AND ?
         ORDER BY t.tanggal DESC");
     $stmt->execute([$from, $to]);
