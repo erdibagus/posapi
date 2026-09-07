@@ -1,23 +1,21 @@
+# Enable CORS for all PHP files
+<FilesMatch "\.(php)$">
+    # Allow from production domain
+    Header always set Access-Control-Allow-Origin "https://pos.kumonpurinkendal.my.id"
+    Header always set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+    Header always set Access-Control-Allow-Credentials "true"
+    Header always set Access-Control-Max-Age "86400"
+</FilesMatch>
+
 # Disable caching for API responses
 <IfModule mod_headers.c>
-    Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
-    Header set Pragma "no-cache"
-    Header set Expires "0"
-</IfModule>
-
-# Enable CORS - Allow requests from your frontend domain
-<IfModule mod_headers.c>
-    # Allow specific origin (production)
-    SetEnvIf Origin "^https://pos\.kumonpurinkendal\.my\.id$" ORIGIN_ALLOWED=$0
-    Header set Access-Control-Allow-Origin "%{ORIGIN_ALLOWED}e" env=ORIGIN_ALLOWED
-    Header set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
-    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
-    Header set Access-Control-Allow-Credentials "true"
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header always set Pragma "no-cache"
+    Header always set Expires "0"
 </IfModule>
 
 # Handle OPTIONS preflight requests
-<IfModule mod_rewrite.c>
-    RewriteEngine On
-    RewriteCond %{REQUEST_METHOD} OPTIONS
-    RewriteRule ^(.*)$ $1 [R=200,L]
-</IfModule>
+RewriteEngine On
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=204,L]
