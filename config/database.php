@@ -29,11 +29,30 @@ class Database {
 }
 
 function cors() {
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    // Daftar origin yang diizinkan
+    $allowed_origins = [
+        'https://pos.kumonpurinkendal.my.id',
+        'http://localhost:3000',
+        'http://localhost:5173'
+    ];
+    
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    
+    if (in_array($origin, $allowed_origins)) {
+        header("Access-Control-Allow-Origin: $origin");
+    } else {
+        header('Access-Control-Allow-Origin: https://pos.kumonpurinkendal.my.id');
+    }
+    
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
+    header('Access-Control-Allow-Credentials: true');
     header('Content-Type: application/json; charset=UTF-8');
-    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { http_response_code(200); exit; }
+    
+    if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') { 
+        http_response_code(200); 
+        exit; 
+    }
 }
 
 function res($status, $data = null, $message = '') {

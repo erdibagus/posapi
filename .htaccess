@@ -5,14 +5,17 @@
     Header set Expires "0"
 </IfModule>
 
-# Enable CORS
+# Enable CORS - Allow requests from your frontend domain
 <IfModule mod_headers.c>
-    Header set Access-Control-Allow-Origin "*"
+    # Allow specific origin (production)
+    SetEnvIf Origin "^https://pos\.kumonpurinkendal\.my\.id$" ORIGIN_ALLOWED=$0
+    Header set Access-Control-Allow-Origin "%{ORIGIN_ALLOWED}e" env=ORIGIN_ALLOWED
     Header set Access-Control-Allow-Methods "GET, POST, OPTIONS, PUT, DELETE"
-    Header set Access-Control-Allow-Headers "Content-Type, Authorization"
+    Header set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+    Header set Access-Control-Allow-Credentials "true"
 </IfModule>
 
-# Handle OPTIONS requests
+# Handle OPTIONS preflight requests
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteCond %{REQUEST_METHOD} OPTIONS
