@@ -224,7 +224,6 @@ if ($method === 'POST') {
                 $sisa_limit = $limit - $nilai_konsinyasi_sekarang;
                 $kelebihan = $total_setelah_kirim - $limit;
                 
-                $db->rollBack();
                 res(false, null, 
                     "Limit konsinyasi tidak mencukupi!\n" .
                     "Limit: Rp " . number_format($limit, 0, ',', '.') . "\n" .
