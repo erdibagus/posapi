@@ -13,6 +13,41 @@ if ($method === 'GET') {
         res(true, $stmt->fetchAll());
     }
     
+    // Info limit pelanggan dengan nilai konsinyasi saat ini
+    if ($action === 'limit_info') {
+        $id_pelanggan = $_GET['id_pelanggan'] ?? 0;
+        
+        // Get pelanggan data
+        $pelStmt = $db->prepare("SELECT id, nama_pelanggan, limit_konsinyasi FROM pelanggan WHERE id=? AND tipe_pelanggan='konsinyasi'");
+        $pelStmt->execute([$id_pelanggan]);
+        $pelanggan = $pelStmt->fetch();
+        
+        if (!$pelanggan) res(false, null, 'Pelanggan tidak ditemukan');
+        
+        // Hitung total nilai konsinyasi saat ini
+        $stokStmt = $db->prepare("
+            SELECT COALESCE(SUM(sk.stok_pcs * sk.harga_konsinyasi), 0) as total_konsinyasi
+            FROM stok_konsinyasi sk
+            WHERE sk.id_pelanggan = ?
+        ");
+        $stokStmt->execute([$id_pelanggan]);
+        $stokData = $stokStmt->fetch();
+        
+        $limit = (float)$pelanggan['limit_konsinyasi'];
+        $nilai_sekarang = (float)$stokData['total_konsinyasi'];
+        $sisa_limit = $limit - $nilai_sekarang;
+        $persentase = $limit > 0 ? ($nilai_sekarang / $limit) * 100 : 0;
+        
+        res(true, [
+            'id_pelanggan' => $pelanggan['id'],
+            'nama_pelanggan' => $pelanggan['nama_pelanggan'],
+            'limit_konsinyasi' => $limit,
+            'nilai_konsinyasi_sekarang' => $nilai_sekarang,
+            'sisa_limit' => $sisa_limit,
+            'persentase_terpakai' => round($persentase, 2)
+        ]);
+    }
+    
     // Stok konsinyasi per pelanggan
     if ($action === 'stok') {
         $id_pelanggan = $_GET['id_pelanggan'] ?? 0;
@@ -155,9 +190,51 @@ if ($method === 'POST') {
         
         if (empty($items)) res(false, null, 'Item kosong');
         
+        // Hitung total nilai pengiriman
         $total_nilai = array_reduce($items, function($sum, $i) {
             return $sum + ($i['harga_konsinyasi'] * $i['jumlah_pcs']);
         }, 0);
+        
+        // CEK LIMIT KONSINYASI
+        $pelStmt = $db->prepare("SELECT nama_pelanggan, limit_konsinyasi FROM pelanggan WHERE id=?");
+        $pelStmt->execute([$id_pelanggan]);
+        $pelanggan = $pelStmt->fetch();
+        
+        if (!$pelanggan) res(false, null, 'Pelanggan tidak ditemukan');
+        
+        $limit = (float)$pelanggan['limit_konsinyasi'];
+        
+        // Jika limit > 0, lakukan validasi
+        if ($limit > 0) {
+            // Hitung total nilai barang konsinyasi yang sedang di pelanggan
+            $stokStmt = $db->prepare("
+                SELECT COALESCE(SUM(sk.stok_pcs * sk.harga_konsinyasi), 0) as total_konsinyasi
+                FROM stok_konsinyasi sk
+                WHERE sk.id_pelanggan = ?
+            ");
+            $stokStmt->execute([$id_pelanggan]);
+            $stokData = $stokStmt->fetch();
+            $nilai_konsinyasi_sekarang = (float)$stokData['total_konsinyasi'];
+            
+            // Total setelah pengiriman ini
+            $total_setelah_kirim = $nilai_konsinyasi_sekarang + $total_nilai;
+            
+            // Validasi
+            if ($total_setelah_kirim > $limit) {
+                $sisa_limit = $limit - $nilai_konsinyasi_sekarang;
+                $kelebihan = $total_setelah_kirim - $limit;
+                
+                $db->rollBack();
+                res(false, null, 
+                    "Limit konsinyasi tidak mencukupi!\n" .
+                    "Limit: Rp " . number_format($limit, 0, ',', '.') . "\n" .
+                    "Konsinyasi saat ini: Rp " . number_format($nilai_konsinyasi_sekarang, 0, ',', '.') . "\n" .
+                    "Sisa limit: Rp " . number_format($sisa_limit, 0, ',', '.') . "\n" .
+                    "Pengiriman ini: Rp " . number_format($total_nilai, 0, ',', '.') . "\n" .
+                    "Kelebihan: Rp " . number_format($kelebihan, 0, ',', '.')
+                );
+            }
+        }
         
         $no_konsinyasi = 'KSG-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -5));
         
