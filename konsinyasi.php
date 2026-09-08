@@ -9,7 +9,7 @@ if ($method === 'GET') {
     
     // Daftar pelanggan konsinyasi
     if ($action === 'pelanggan') {
-        $stmt = $db->query("SELECT * FROM pelanggan WHERE tipe_pelanggan='konsinyasi' ORDER BY nama_pelanggan");
+        $stmt = $db->query("SELECT * FROM pelanggan WHERE tipe_pelanggan='konsinyasi' AND status='aktif' ORDER BY nama_pelanggan");
         res(true, $stmt->fetchAll());
     }
     
@@ -18,7 +18,7 @@ if ($method === 'GET') {
         $id_pelanggan = $_GET['id_pelanggan'] ?? 0;
         
         // Get pelanggan data
-        $pelStmt = $db->prepare("SELECT id, nama_pelanggan, limit_konsinyasi FROM pelanggan WHERE id=? AND tipe_pelanggan='konsinyasi'");
+        $pelStmt = $db->prepare("SELECT id, nama_pelanggan, limit_konsinyasi FROM pelanggan WHERE id=? AND tipe_pelanggan='konsinyasi' AND status='aktif'");
         $pelStmt->execute([$id_pelanggan]);
         $pelanggan = $pelStmt->fetch();
         
@@ -196,7 +196,7 @@ if ($method === 'POST') {
         }, 0);
         
         // CEK LIMIT KONSINYASI
-        $pelStmt = $db->prepare("SELECT nama_pelanggan, limit_konsinyasi FROM pelanggan WHERE id=?");
+        $pelStmt = $db->prepare("SELECT nama_pelanggan, limit_konsinyasi FROM pelanggan WHERE id=? AND status='aktif'");
         $pelStmt->execute([$id_pelanggan]);
         $pelanggan = $pelStmt->fetch();
         
