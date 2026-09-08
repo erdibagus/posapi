@@ -9,14 +9,27 @@ if ($method === 'GET') {
     if ($action === 'list') {
         $from = $_GET['from'] ?? date('Y-m-01');
         $to   = $_GET['to']   ?? date('Y-m-d');
-        $stmt = $db->prepare("SELECT t.*, u.nama AS kasir FROM transaksi t LEFT JOIN users u ON t.id_user=u.id WHERE DATE(t.tanggal) BETWEEN ? AND ? ORDER BY t.tanggal DESC");
+        $stmt = $db->prepare("
+            SELECT t.*, u.nama AS kasir, p.nama_pelanggan 
+            FROM transaksi t 
+            LEFT JOIN users u ON t.id_user=u.id 
+            LEFT JOIN pelanggan p ON t.id_pelanggan=p.id
+            WHERE DATE(t.tanggal) BETWEEN ? AND ? 
+            ORDER BY t.tanggal DESC
+        ");
         $stmt->execute([$from, $to]);
         res(true, $stmt->fetchAll());
     }
 
     if ($action === 'detail') {
         $id = intval($_GET['id']);
-        $tStmt = $db->prepare("SELECT t.*, u.nama AS kasir FROM transaksi t LEFT JOIN users u ON t.id_user=u.id WHERE t.id=?");
+        $tStmt = $db->prepare("
+            SELECT t.*, u.nama AS kasir, p.nama_pelanggan 
+            FROM transaksi t 
+            LEFT JOIN users u ON t.id_user=u.id 
+            LEFT JOIN pelanggan p ON t.id_pelanggan=p.id
+            WHERE t.id=?
+        ");
         $tStmt->execute([$id]);
         $tx = $tStmt->fetch();
         if (!$tx) res(false, null, 'Transaksi tidak ditemukan');
