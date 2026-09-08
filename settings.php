@@ -9,28 +9,19 @@ if ($method === 'GET') {
     $rows = $stmt->fetchAll();
     $cfg = [];
     foreach ($rows as $r) {
-        $value = $r['value'];
-        // Convert string boolean back to actual boolean
-        if ($r['key'] === 'suara_barcode') {
-            $value = $value === '1' || $value === 'true' || $value === true;
-        }
-        $cfg[$r['key']] = $value;
+        $cfg[$r['key']] = $r['value'];
     }
     res(true, $cfg);
 }
 if ($method === 'POST') {
     $body = getBody();
     if (($body['action'] ?? '') === 'update') {
-        $fields = ['nama_toko', 'alamat', 'telepon', 'tagline', 'suara_barcode'];
+        $fields = ['nama_toko', 'alamat', 'telepon', 'tagline'];
         foreach ($fields as $f) {
             if (isset($body[$f])) {
                 $exists = $db->prepare("SELECT COUNT(*) FROM settings WHERE `key`=?")->execute([$f]);
                 $count = $db->query("SELECT COUNT(*) FROM settings WHERE `key`='$f'")->fetchColumn();
                 $value = $body[$f];
-                // Convert boolean to string for storage
-                if (is_bool($value)) {
-                    $value = $value ? '1' : '0';
-                }
                 if ($count > 0) {
                     $db->prepare("UPDATE settings SET value=? WHERE `key`=?")->execute([$value, $f]);
                 } else {
