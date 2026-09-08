@@ -415,6 +415,32 @@ if ($method === 'POST') {
                 }
             }
             
+            // Jika tipe 'jual', hapus juga dari tabel transaksi utama
+            if ($tx['tipe'] === 'jual') {
+                // Cari transaksi utama berdasarkan id_pelanggan dan tanggal yang sama
+                $transaksiStmt = $db->prepare("
+                    SELECT id FROM transaksi 
+                    WHERE id_pelanggan=? 
+                    AND tipe_transaksi='konsinyasi' 
+                    AND DATE(tanggal) = DATE(?)
+                    AND total_harga = ?
+                    ORDER BY id DESC
+                    LIMIT 1
+                ");
+                $transaksiStmt->execute([$tx['id_pelanggan'], $tx['tanggal'], $tx['total_nilai']]);
+                $transaksi_utama = $transaksiStmt->fetch();
+                
+                if ($transaksi_utama) {
+                    // Hapus detail transaksi utama
+                    $db->prepare("DELETE FROM detail_transaksi WHERE id_transaksi=?")->execute([$transaksi_utama['id']]);
+                    // Hapus transaksi utama
+                    $db->prepare("DELETE FROM transaksi WHERE id=?")->execute([$transaksi_utama['id']]);
+                }
+            }
+            
+            // Delete detail konsinyasi
+            $db->prepare("DELETE FROM detail_konsinyasi WHERE id_transaksi_konsinyasi=?")->execute([$id]);
+            
             // Delete transaction
             $db->prepare("DELETE FROM transaksi_konsinyasi WHERE id=?")->execute([$id]);
             
