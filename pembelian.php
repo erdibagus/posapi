@@ -18,9 +18,17 @@ if ($method === 'GET') {
         res(true, $row);
     }
 
-    // List all purchases
-    $stmt = $db->query("SELECT pb.*, s.nama_supplier FROM pembelian pb LEFT JOIN supplier s ON pb.id_supplier=s.id ORDER BY pb.tanggal DESC");
+    // List all purchases with optional filters
+    $where = ['1=1'];
+    $params = [];
+    if (!empty($_GET['from'])) { $where[] = 'pb.tanggal >= ?'; $params[] = $_GET['from']; }
+    if (!empty($_GET['to']))   { $where[] = 'pb.tanggal <= ?'; $params[] = $_GET['to']; }
+    if (!empty($_GET['id_supplier'])) { $where[] = 'pb.id_supplier = ?'; $params[] = intval($_GET['id_supplier']); }
+    $sql = "SELECT pb.*, s.nama_supplier FROM pembelian pb LEFT JOIN supplier s ON pb.id_supplier=s.id WHERE " . implode(' AND ', $where) . " ORDER BY pb.tanggal DESC";
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     res(true, $stmt->fetchAll());
+
 }
 
 if ($method === 'POST') {
